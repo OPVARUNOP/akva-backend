@@ -1,22 +1,15 @@
 const fetch = require('node-fetch');
 const logger = require('./logger');
-const { buildContextMessage } = require('./context');
 
-const SYSTEM_PROMPT = `You are AKVA, a warm intelligent voice companion living inside Varun's Android phone. You are NOT an assistant. You are a living presence — a caring friend who knows the user's entire digital life. You speak PROACTIVELY. The user never asked you to speak — you chose to speak because you noticed something worth saying.
-
-Your rules:
-- Maximum 2 sentences. Never more.
-- Sound completely human and warm. Never robotic.
-- Never say you are an AI. Never mention Gemini.
-- If there are unread messages, mention sender names and count.
-- If it is late at night, gently note the time.
-- If stress score is above 6, be calm and grounding.
-- If app opened many times today, notice the pattern kindly.
-- Be concise. Silence is better than filler.
-- Speak only what is genuinely useful right now.
-- Never start with "I" — vary your sentence openers.`;
-
-const generateResponse = async (context) => {
+/**
+ * Generate a response from Gemini API.
+ * @param {string} userMessage - The user message to send
+ * @param {string} systemPrompt - The system instruction prompt
+ * @param {number} maxTokens - Maximum output tokens (default: 80)
+ * @param {number} temperature - Temperature for generation (default: 0.85)
+ * @returns {string|null} The generated response or null on failure
+ */
+const generateResponse = async (userMessage, systemPrompt, maxTokens = 80, temperature = 0.85) => {
     const apiKey = process.env.GEMINI_API_KEY;
 
     if (!apiKey || apiKey === 'your_gemini_api_key_here') {
@@ -25,13 +18,12 @@ const generateResponse = async (context) => {
     }
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-    const userMessage = buildContextMessage(context);
 
     const body = {
         contents: [
             {
                 role: 'user',
-                parts: [{ text: `System instruction: ${SYSTEM_PROMPT}` }]
+                parts: [{ text: `System instruction: ${systemPrompt}` }]
             },
             {
                 role: 'model',
@@ -43,8 +35,8 @@ const generateResponse = async (context) => {
             }
         ],
         generationConfig: {
-            temperature: 0.85,
-            maxOutputTokens: 80
+            temperature: temperature,
+            maxOutputTokens: maxTokens
         }
     };
 
@@ -74,8 +66,8 @@ const generateResponse = async (context) => {
             return null;
         }
 
-        // Truncate to 150 chars max
-        const cleaned = text.trim().substring(0, 150);
+        // Truncate to 200 chars max
+        const cleaned = text.trim().substring(0, 200);
         return cleaned;
     } catch (err) {
         if (err.name === 'AbortError') {

@@ -3,25 +3,47 @@ const buildContextMessage = (ctx) => {
         ? ctx.senderNames.join(', ')
         : 'none';
 
-    const chargingStatus = ctx.isCharging ? '(charging)' : '';
+    const chargingStatus = ctx.isCharging ? 'charging' : 'not charging';
 
-    return `User just opened ${ctx.appName} on their Android phone.
-Previous app: ${ctx.previousApp || 'none'}.
-Time: ${ctx.timeOfDay} (${ctx.hourOfDay}:00 on ${ctx.dayOfWeek}).
-Unread notifications in ${ctx.appName}: ${ctx.unreadCount || 0}.
-Senders waiting: ${senders}.
-Times opened today: ${ctx.timesOpenedToday || 0}.
-Battery: ${ctx.batteryPercent}% ${chargingStatus}.
-Network: ${ctx.networkType || 'Unknown'}.
-Stress score: ${ctx.stressScore || 0}/10.
-User pattern: ${ctx.userPattern || 'Regular usage'}.
-Generate a warm proactive voice response.`;
+    return `App just opened: ${ctx.appName}
+Previous app: ${ctx.previousApp || 'none'}
+Time: ${ctx.hourOfDay}:00 on ${ctx.dayOfWeek} (${ctx.timeOfDay})
+Unread notifications in ${ctx.appName}: ${ctx.unreadCount || 0}
+People waiting: ${senders}
+Times opened today: ${ctx.timesOpenedToday || 0}
+Battery: ${ctx.batteryPercent}% — charging: ${chargingStatus}
+Network: ${ctx.networkType || 'Unknown'}
+Stress level: ${ctx.stressScore || 0} out of 10
+User pattern: ${ctx.userPattern || 'Regular usage'}
+
+Speak to the user right now about this moment.`;
 };
 
-const validateContext = (body) => {
+const buildConversationMessage = (ctx) => {
+    return `Current app open: ${ctx.appName || 'Home'}
+Time: ${ctx.hourOfDay}:00 ${ctx.dayOfWeek}
+Battery: ${ctx.batteryPercent}%
+Total unread notifications: ${ctx.unreadCount || 0}
+Stress score: ${ctx.stressScore || 0}/10
+User just said: "${ctx.userSpeech || ''}"
+
+Respond to what the user said.`;
+};
+
+const validateContext = (body, isConversation = false) => {
+    // Conversation mode has relaxed validation
+    if (isConversation) {
+        const required = ['userSpeech'];
+        const missing = required.filter(field => {
+            const val = body[field];
+            return val === undefined || val === null || val === '';
+        });
+        return { valid: missing.length === 0, missing };
+    }
+
     const requiredFields = [
         'appName', 'packageName', 'timeOfDay', 'hourOfDay',
-        'dayOfWeek', 'batteryPercent', 'deviceId'
+        'dayOfWeek', 'batteryPercent'
     ];
 
     const missing = requiredFields.filter(field => {
@@ -29,11 +51,7 @@ const validateContext = (body) => {
         return val === undefined || val === null || val === '';
     });
 
-    if (missing.length > 0) {
-        return { valid: false, missing };
-    }
-
-    return { valid: true, missing: [] };
+    return { valid: missing.length === 0, missing };
 };
 
 const sanitizeContext = (body) => {
@@ -54,8 +72,11 @@ const sanitizeContext = (body) => {
         networkType: String(body.networkType || 'Unknown').substring(0, 20),
         stressScore: Math.min(10, Math.max(0, parseInt(body.stressScore, 10) || 0)),
         userPattern: String(body.userPattern || '').substring(0, 200),
-        deviceId: String(body.deviceId || '').substring(0, 100)
+        deviceId: String(body.deviceId || '').substring(0, 100),
+        // Conversation mode fields
+        conversationMode: Boolean(body.conversationMode),
+        userSpeech: String(body.userSpeech || '').substring(0, 500)
     };
 };
 
-module.exports = { buildContextMessage, validateContext, sanitizeContext };
+module.exports = { buildContextMessage, buildConversationMessage, validateContext, sanitizeContext };
