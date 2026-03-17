@@ -3,13 +3,8 @@ const logger = require('./logger');
 
 /**
  * Generate a response from Gemini API.
- * @param {string} userMessage - The user message to send
- * @param {string} systemPrompt - The system instruction prompt
- * @param {number} maxTokens - Maximum output tokens (default: 80)
- * @param {number} temperature - Temperature for generation (default: 0.85)
- * @returns {string|null} The generated response or null on failure
  */
-const generateResponse = async (userMessage, systemPrompt, maxTokens = 80, temperature = 0.85) => {
+const generateResponse = async (userMessage, systemPrompt, maxTokens = 150, temperature = 0.8) => {
     const apiKey = process.env.GEMINI_API_KEY;
 
     if (!apiKey || apiKey === 'your_gemini_api_key_here') {
@@ -27,7 +22,7 @@ const generateResponse = async (userMessage, systemPrompt, maxTokens = 80, tempe
             },
             {
                 role: 'model',
-                parts: [{ text: 'Understood. I am AKVA.' }]
+                parts: [{ text: 'Understood.' }]
             },
             {
                 role: 'user',
@@ -42,7 +37,7 @@ const generateResponse = async (userMessage, systemPrompt, maxTokens = 80, tempe
 
     try {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 5000);
+        const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
 
         const response = await fetch(url, {
             method: 'POST',
@@ -54,21 +49,20 @@ const generateResponse = async (userMessage, systemPrompt, maxTokens = 80, tempe
         clearTimeout(timeout);
 
         if (!response.ok) {
-            logger.error('Gemini API error', { status: response.status });
+            const errData = await response.json().catch(() => ({}));
+            logger.error('Gemini API error', { status: response.status, details: errData });
             return null;
         }
 
         const data = await response.json();
-
         const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+
         if (!text || text.trim().length === 0) {
             logger.warn('Gemini returned empty response');
             return null;
         }
 
-        // Truncate to 200 chars max
-        const cleaned = text.trim().substring(0, 200);
-        return cleaned;
+        return text.trim();
     } catch (err) {
         if (err.name === 'AbortError') {
             logger.error('Gemini API timeout');
@@ -81,18 +75,14 @@ const generateResponse = async (userMessage, systemPrompt, maxTokens = 80, tempe
 
 const checkGeminiStatus = async () => {
     const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey || apiKey === 'your_gemini_api_key_here') {
-        return 'not_configured';
-    }
+    if (!apiKey || apiKey === 'your_gemini_api_key_here') return 'not_configured';
 
     try {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash?key=${apiKey}`;
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 3000);
-
         const response = await fetch(url, { signal: controller.signal });
         clearTimeout(timeout);
-
         return response.ok ? 'connected' : 'unavailable';
     } catch (err) {
         return 'unavailable';
